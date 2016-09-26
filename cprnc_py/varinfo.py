@@ -21,7 +21,7 @@ class VarInfo(object):
     # Constructor and other special methods
     # ------------------------------------------------------------------------
 
-    def __init__(self, var):
+    def __init__(self, var, name=None):
         """Create a VarInfo object.
 
         Arguments:
@@ -33,11 +33,15 @@ class VarInfo(object):
         if not ma.isMA(var):
             var = ma.array(var)
         self._compute_stats(var)
+        self.name = name
 
     def __str__(self):
-        mystr = "{:8d} {:8d} ".format(self._num_elements, self._num_valid)
-        mystr += "{:23.15e} {} ".format(float(self._max_val), index_str(self._max_indices))
-        mystr += "{:23.15e} {} ".format(float(self._min_val), index_str(self._min_indices))
+        mystr = ""
+        if self.name:
+            mystr += self.name + "\n"
+        mystr += "{:8d} {:8d} ".format(self._num_elements, self._num_valid)
+        mystr += "{:23.15e} {} ".format(self._max_val, index_str(self._max_indices))
+        mystr += "{:23.15e} {} ".format(self._min_val, index_str(self._min_indices))
         mystr += "{:23.15e}\n".format(self._mean_absval)
 
         return mystr
@@ -78,3 +82,12 @@ class VarInfo(object):
             self._max_indices = 0
             self._min_indices = 0
 
+class VarInfoNonNumeric(object):
+    """This class represents a non-numeric variable"""
+
+    def __init__(self, name):
+        """Creates a VarInfoNonNumeric object"""
+        self.name = name
+
+    def __str__(self):
+        return self.name + " is non-numeric and cannot be analyzed"

@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+"""
+cprnc: program to inspect netcdf files
+"""
+
+from __future__ import print_function
+
+import sys
+
+if sys.hexversion < 0x02070000:
+    print(70 * "*")
+    print("ERROR: {0} requires python >= 2.7.x. ".format(sys.argv[0]))
+    print("It appears that you are running python {0}".format(
+        ".".join(str(x) for x in sys.version_info[0:3])))
+    print(70 * "*")
+    sys.exit(1)
+
+#
+# built-in modules
+#
+import argparse
+import os
+import traceback
+
+#
+# installed dependencies
+#
+
+#
+# other modules in this package
+#
+from cprnc_py.fileinfo import FileInfo
+from cprnc_py.netcdf.netcdf_wrapper import netcdf
+
+# -------------------------------------------------------------------------------
+#
+# User input
+#
+# -------------------------------------------------------------------------------
+
+def commandline_options():
+    """Process the command line arguments.
+
+    """
+    parser = argparse.ArgumentParser(
+        description='Inspect netcdf files')
+
+    parser.add_argument('file',
+                        help='File to inspect')
+
+    parser.add_argument('--np', dest='nprocs', default=None, type=int,
+                        help="Number of processors; if not specified, use 1 proc "
+                        "without the overhead of a multiprocessing package. "
+                        "Note that specifying --np 1 is NOT the same as leaving out --np: "
+                        "the former will invoke a true multiprocessing package, which carries "
+                        "some overhead (this is mainly useful for testing).")
+
+    parser.add_argument('--backtrace', action='store_true',
+                        help='show exception backtraces as extra debugging '
+                        'output')
+
+    parser.add_argument('--debug', action='store_true',
+                        help='extra debugging output (currently unused)')
+
+    options = parser.parse_args()
+    print(options)
+    return options
+
+
+# -------------------------------------------------------------------------------
+#
+# main
+#
+# -------------------------------------------------------------------------------
+
+def main(options):
+    ncfile = netcdf(options.file)
+    finfo = FileInfo(ncfile, separate_dim="time", nprocs=options.nprocs)
+    print(finfo)
+    return 0
+
+
+if __name__ == "__main__":
+    options = commandline_options()
+    try:
+        status = main(options)
+        sys.exit(status)
+    except Exception as error:
+        print(str(error))
+        if options.backtrace:
+            traceback.print_exc()
+        sys.exit(1)
