@@ -195,7 +195,7 @@ def _create_vardiffs_wrapper_nodim(varname, file1, file2):
     varname: string
     """
 
-    return _create_vardiffs_wrapper((varname, None), file1, file2None)
+    return _create_vardiffs_wrapper((varname, None), file1, file2, None)
 
 
 def _create_vardiffs_wrapper(varname_index, file1, file2, dimname=None):
