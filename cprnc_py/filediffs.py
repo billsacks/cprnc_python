@@ -1,6 +1,5 @@
 from __future__ import print_function
-from functools import partial
-from multiprocessing import Pool
+from multiprocessing import Process, Queue
 from cprnc_py.multiprocessing_fake import PoolFake
 from cprnc_py.vardiffs import (VarDiffs, VarDiffsNonNumeric)
 
@@ -158,6 +157,18 @@ class FileDiffs(object):
         pool = self._create_pool()
         self._vardiffs_list = \
           list(pool.map(pfunc, sorted(self._file1.get_varlist())))
+        q = Queue()
+        procs = []
+        for varname in self._file.get_varlist(dim):
+            if index is None:
+                p = Process(target = _create_vardiffs_wrapper_nodim,
+                            args = (varname, self._file1, self._file2, q))
+                p.start()
+                procs.append(p)
+        self._vardiffs_list = []
+        for p in procs:
+            p.join()
+            self._vardiffs_list.append(q.get())
 
     def _add_vardiffs_separated_by_dim(self, dimname):
         """Add all of the vardiffs to self.
@@ -168,12 +179,19 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        myfunc = partial(_create_vardiffs_wrapper,
-                         file1=self._file1, file2=self._file2,
-                         dimname=dimname)
-        pool = self._create_pool()
-        self._vardiffs_list = \
-          list(pool.map(myfunc, self._file1.get_varlist_bydim(dimname)))
+        q = Queue()
+        procs = []
+        for varname_index in self._file.get_varlist_bydim(dim):
+            if index is None:
+                p = Process(target = _create_vardiffs_wrapper,
+                            args = (varname_index, self._file1,
+                                    self._file2, q, dimname))
+                p.start()
+                procs.append(p)
+        self._vardiffs_list = []
+        for p in procs:
+            p.join()
+            self._vardiffs_list.append(q.get())
 
     def _create_pool(self):
         """Return a multiprocessing Pool object that can be used for
@@ -189,16 +207,16 @@ class FileDiffs(object):
 # easily 'pickled' for the sake of parallelization
 # ------------------------------------------------------------------------
 
-def _create_vardiffs_wrapper_nodim(varname, file1, file2):
+def _create_vardiffs_wrapper_nodim(varname, file1, file2, queue):
     """Create one DiffWrapper object, with no separation by dimension.
     Arguments:
     varname: string
     """
 
-    return _create_vardiffs_wrapper((varname, None), file1, file2, None)
+    _create_vardiffs_wrapper((varname, None), file1, file2, queue, None)
 
 
-def _create_vardiffs_wrapper(varname_index, file1, file2, dimname=None):
+def _create_vardiffs_wrapper(varname_index, file1, file2, queue, dimname=None):
     """Create one DiffWrapper object.
 
     Arguments:
@@ -221,7 +239,7 @@ def _create_vardiffs_wrapper(varname_index, file1, file2, dimname=None):
         diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname,
                                                dimname, index, index)
 
-    return diff_wrapper
+    queue.put(diff_wrapper)
 
 
 def _create_vardiffs(varname, file1, file2, dim_indices={}):
