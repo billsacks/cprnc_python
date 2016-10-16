@@ -152,14 +152,9 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        pfunc = partial(_create_vardiffs_wrapper_nodim,
-                        file1=self._file1, file2=self._file2)
-        pool = self._create_pool()
-        self._vardiffs_list = \
-          list(pool.map(pfunc, sorted(self._file1.get_varlist())))
         q = Queue()
         procs = []
-        for varname in self._file.get_varlist(dim):
+        for varname in self._file1.get_varlist(dim):
             if index is None:
                 p = Process(target = _create_vardiffs_wrapper_nodim,
                             args = (varname, self._file1, self._file2, q))
@@ -181,8 +176,8 @@ class FileDiffs(object):
 
         q = Queue()
         procs = []
-        for varname_index in self._file.get_varlist_bydim(dim):
-            if index is None:
+        for varname_index in self._file1.get_varlist_bydim(dimname):
+            if varname_index[1] is None:
                 p = Process(target = _create_vardiffs_wrapper,
                             args = (varname_index, self._file1,
                                     self._file2, q, dimname))
