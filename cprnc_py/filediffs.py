@@ -1,6 +1,5 @@
 from __future__ import print_function
-from functools import partial
-from multiprocessing import Pool
+from multiprocessing import Process, Queue
 from cprnc_py.multiprocessing_fake import PoolFake
 from cprnc_py.vardiffs import (VarDiffs, VarDiffsNonNumeric, VarDiffsUnsharedVar, VarDiffsDimSizeDiff)
 
@@ -51,12 +50,8 @@ class FileDiffs(object):
             package
         """
 
-        # TODO(wjs, 2016-01-05) This use of globals is bad. It's done for the
-        # sake of multiprocessing, but maybe there is some other way around it.
-        global _file1
-        global _file2
-        _file1 = file1
-        _file2 = file2
+        self._file1 = file1
+        self._file2 = file2
 
         self._nprocs = nprocs
 
@@ -160,19 +155,32 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        pool = self._create_pool()
-        vlist1 = set(_file1.get_varlist())
-        vlist2 = set(_file2.get_varlist())
+        q = Queue()
+        procs = []
+        vlist1 = set(self._file1.get_varlist())
+        vlist2 = set(self._file2.get_varlist())
         vlist_shared = vlist1 & vlist2
-        self._vardiffs_list = list(pool.map(_create_vardiffs_wrapper_nodim, vlist_shared))
+        for varname in vlist_shared:
+            if index is None:
+                p = Process(target = _create_vardiffs_wrapper_nodim,
+                            args = (varname, self._file1, self._file2, q))
+                p.start()
+                procs.append(p)
+        self._vardiffs_list = []
+        for p in procs:
+            p.join()
+            self._vardiffs_list.append(q.get())
+
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
+        vlist_nonshared = vlist_1_not_2 | vlist_2_not_1
         for i, vlist_nonshared in enumerate((vlist_1_not_2, vlist_2_not_1)):
             found_in_filenum = i + 1
             for varname in vlist_nonshared:
                 var_diffs = VarDiffsUnsharedVar(varname, found_in_filenum)
                 diff_wrapper = _DiffWrapper.no_slicing(var_diffs, varname)
                 self._add_one_vardiffs(diff_wrapper)
+
         self._vardiffs_list.sort(key=diff_wrapper_sort_key)
 
     def _add_vardiffs_separated_by_dim(self, dimname):
@@ -184,14 +192,26 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        myfunc = partial(_create_vardiffs_wrapper, dimname=dimname)
-        vlist1 = set(_file1.get_varlist_bydim(dimname))
-        vlist2 = set(_file2.get_varlist_bydim(dimname))
+        q = Queue()
+        procs = []
+        vlist1 = set(self._file1.get_varlist_bydim(dimname))
+        vlist2 = set(self._file2.get_varlist_bydim(dimname))
         vlist_shared = vlist1 & vlist2
-        pool = self._create_pool()
-        self._vardiffs_list = list(pool.map(myfunc, vlist_shared))
+        for varname_index in vlist_shared:
+            if varname_index[1] is None:
+                p = Process(target = _create_vardiffs_wrapper,
+                            args = (varname_index, self._file1,
+                                    self._file2, q, dimname))
+                p.start()
+                procs.append(p)
+        self._vardiffs_list = []
+        for p in procs:
+            p.join()
+            self._vardiffs_list.append(q.get())
+
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
+        vlist_nonshared = vlist_1_not_2 | vlist_2_not_1
         for i, vlist_nonshared in enumerate((vlist_1_not_2, vlist_2_not_1)):
             found_in_filenum = i + 1
             for (varname, index) in vlist_nonshared:
@@ -199,6 +219,7 @@ class FileDiffs(object):
                 diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname, dimname,
                                                        index, index)
                 self._add_one_vardiffs(diff_wrapper)
+
         self._vardiffs_list.sort(key=diff_wrapper_sort_key)
 
     def _create_pool(self):
@@ -220,16 +241,16 @@ class FileDiffs(object):
 # easily 'pickled' for the sake of parallelization
 # ------------------------------------------------------------------------
 
-def _create_vardiffs_wrapper_nodim(varname):
+def _create_vardiffs_wrapper_nodim(varname, file1, file2, queue):
     """Create one DiffWrapper object, with no separation by dimension.
     Arguments:
     varname: string
     """
 
-    return _create_vardiffs_wrapper((varname, None))
+    _create_vardiffs_wrapper((varname, None), file1, file2, queue, None)
 
 
-def _create_vardiffs_wrapper(varname_index, dimname=None):
+def _create_vardiffs_wrapper(varname_index, file1, file2, queue, dimname=None):
     """Create one DiffWrapper object.
 
     Arguments:
@@ -240,7 +261,7 @@ def _create_vardiffs_wrapper(varname_index, dimname=None):
     (varname, index) = varname_index
 
     if index is None:
-        var_diffs = _create_vardiffs(varname)
+        var_diffs = _create_vardiffs(varname, file1, file2)
         diff_wrapper = _DiffWrapper.no_slicing(var_diffs, varname)
     else:
         # For now, assume that we want the same index in file2 as in file1.
@@ -248,14 +269,14 @@ def _create_vardiffs_wrapper(varname_index, dimname=None):
         # TODO(wjs, 2015-12-31) (optional) allow for different indices,
         # based on reading the associated coordinate variable and finding
         # the matching coordinate (e.g., matching time).
-        var_diffs = _create_vardiffs(varname, {dimname:index})
+        var_diffs = _create_vardiffs(varname, file1, file2, {dimname:index})
         diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname,
                                                dimname, index, index)
 
-    return diff_wrapper
+    queue.put(diff_wrapper)
 
 
-def _create_vardiffs(varname, dim_indices={}):
+def _create_vardiffs(varname, file1, file2, dim_indices={}):
     """Create and return a VarDiffs object.
 
     Assumes that the given varname and dim_indices are present on both files
@@ -266,20 +287,18 @@ def _create_vardiffs(varname, dim_indices={}):
         indices to use for slicing the data (should agree with index_info)
     """
 
-    varIsNumeric = True
-    for f in (_file1, _file2):
+    var_is_numeric = True
+    for f in (file1, file2):
         if (f.has_variable(varname)):
-            varIsNumeric = varIsNumeric and f.is_var_numeric(varname)
+            var_is_numeric &= f.is_var_numeric(varname)
 
-    if (varIsNumeric):
-        v1 = _file1.get_vardata(varname, dim_indices)
-        v2 = _file2.get_vardata(varname, dim_indices)
+    if (var_is_numeric):
+        v1 = file1.get_vardata(varname, dim_indices)
+        v2 = file2.get_vardata(varname, dim_indices)
         if (v1.shape == v2.shape):
             my_vardiffs = VarDiffs(varname, v1, v2)
         else:
             my_vardiffs = VarDiffsDimSizeDiff(varname)
-    else:
-        my_vardiffs = VarDiffsNonNumeric(varname)
 
     return my_vardiffs
 
