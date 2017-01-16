@@ -61,8 +61,8 @@ class FileDiffs(object):
             self._add_vardiffs()
 
     def __str__(self):
+        """Returns a string containing information about the statistics of the compared files"""
         mystr = ""
-        # FIXME(wjs, 2015-12-26) Add some header text
 
         for var in self._vardiffs_list:
             mystr = mystr + str(var) + "\n\n"
