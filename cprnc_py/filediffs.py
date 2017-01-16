@@ -136,7 +136,8 @@ class FileDiffs(object):
 
         if (self.num_vars_differ() > 0 or
             self.num_masks_differ() > 0 or
-            self.num_dims_differ() > 0):
+            self.num_dims_differ() > 0 or
+            self.num_nonshared_fields() > 0):
             differ = True
         elif (self.num_vars() - self.num_could_not_be_analyzed()) == 0:
             # If no variables could be analyzed, treat this as files differing
@@ -155,7 +156,7 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        q = Queue()
+        self.results = Queue()
         procs = []
         vlist1 = set(self._file1.get_varlist())
         vlist2 = set(self._file2.get_varlist())
@@ -163,7 +164,7 @@ class FileDiffs(object):
         for varname in vlist_shared:
             if index is None:
                 p = Process(target = _create_vardiffs_wrapper_nodim,
-                            args = (varname, self._file1, self._file2, q))
+                            args = (varname))
                 p.start()
                 procs.append(p)
         self._vardiffs_list = []
@@ -183,6 +184,9 @@ class FileDiffs(object):
 
         self._vardiffs_list.sort(key=diff_wrapper_sort_key)
 
+        # Make certain we don't attempt to use the queue outside of here
+        self.results = None
+
     def _add_vardiffs_separated_by_dim(self, dimname):
         """Add all of the vardiffs to self.
 
@@ -192,22 +196,21 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        q = Queue()
+        self.results = Queue()
         procs = []
         vlist1 = set(self._file1.get_varlist_bydim(dimname))
         vlist2 = set(self._file2.get_varlist_bydim(dimname))
         vlist_shared = vlist1 & vlist2
         for varname_index in vlist_shared:
             if varname_index[1] is None:
-                p = Process(target = _create_vardiffs_wrapper,
-                            args = (varname_index, self._file1,
-                                    self._file2, q, dimname))
+                p = Process(target = self._create_vardiffs_wrapper,
+                            args = (varname_index, dimname))
                 p.start()
                 procs.append(p)
         self._vardiffs_list = []
         for p in procs:
             p.join()
-            self._vardiffs_list.append(q.get())
+            self._vardiffs_list.append(self.results.get())
 
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
@@ -222,85 +225,75 @@ class FileDiffs(object):
 
         self._vardiffs_list.sort(key=diff_wrapper_sort_key)
 
-    def _create_pool(self):
-        """Return a multiprocessing Pool object that can be used for
-        parallelization"""
-
-        if (self._nprocs):
-            return Pool(self._nprocs)
-        else:
-            return PoolFake()
+        # Make certain we don't attempt to use the queue outside of here
+        self.results = None
 
     def _add_one_vardiffs(self, diff_wrapper):
         """Add one _DiffWrapper object to the list."""
 
         self._vardiffs_list.append(diff_wrapper)
 
-# ------------------------------------------------------------------------
-# The following are defined outside the class so that they can be more
-# easily 'pickled' for the sake of parallelization
-# ------------------------------------------------------------------------
+    def _create_vardiffs_wrapper_nodim(self, varname):
+        """Create one DiffWrapper object, with no separation by dimension.
+        Arguments:
+        varname: string
+        """
 
-def _create_vardiffs_wrapper_nodim(varname, file1, file2, queue):
-    """Create one DiffWrapper object, with no separation by dimension.
-    Arguments:
-    varname: string
-    """
+        self._create_vardiffs_wrapper((varname, None), None)
 
-    _create_vardiffs_wrapper((varname, None), file1, file2, queue, None)
+    def _create_vardiffs_wrapper(self, varname_index, dimname=None):
+        """Create one DiffWrapper object.
 
+        Arguments:
+        varname_index: tuple (varname, index)
+        dimname: dimension name (or None)
+        """
 
-def _create_vardiffs_wrapper(varname_index, file1, file2, queue, dimname=None):
-    """Create one DiffWrapper object.
+        (varname, index) = varname_index
 
-    Arguments:
-    varname_index: tuple (varname, index)
-    dimname: dimension name (or None)
-    """
-
-    (varname, index) = varname_index
-
-    if index is None:
-        var_diffs = _create_vardiffs(varname, file1, file2)
-        diff_wrapper = _DiffWrapper.no_slicing(var_diffs, varname)
-    else:
-        # For now, assume that we want the same index in file2 as in file1.
-        #
-        # TODO(wjs, 2015-12-31) (optional) allow for different indices,
-        # based on reading the associated coordinate variable and finding
-        # the matching coordinate (e.g., matching time).
-        var_diffs = _create_vardiffs(varname, file1, file2, {dimname:index})
-        diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname,
-                                               dimname, index, index)
-
-    queue.put(diff_wrapper)
-
-
-def _create_vardiffs(varname, file1, file2, dim_indices={}):
-    """Create and return a VarDiffs object.
-
-    Assumes that the given varname and dim_indices are present on both files
-
-    Arguments:
-    varname: variable name
-    dim_indices: dictionary of (dimname:index) pairs giving dimension index or
-        indices to use for slicing the data (should agree with index_info)
-    """
-
-    var_is_numeric = True
-    for f in (file1, file2):
-        if (f.has_variable(varname)):
-            var_is_numeric &= f.is_var_numeric(varname)
-
-    if (var_is_numeric):
-        v1 = file1.get_vardata(varname, dim_indices)
-        v2 = file2.get_vardata(varname, dim_indices)
-        if (v1.shape == v2.shape):
-            my_vardiffs = VarDiffs(varname, v1, v2)
+        if index is None:
+            var_diffs = self._create_vardiffs(varname)
+            diff_wrapper = _DiffWrapper.no_slicing(var_diffs, varname)
         else:
-            my_vardiffs = VarDiffsDimSizeDiff(varname)
+            # For now, assume that we want the same index in file2 as in file1.
+            #
+            # TODO(wjs, 2015-12-31) (optional) allow for different indices,
+            # based on reading the associated coordinate variable and finding
+            # the matching coordinate (e.g., matching time).
+            var_diffs = self._create_vardiffs(varname, {dimname:index})
+            diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname,
+                                                   dimname, index, index)
 
-    return my_vardiffs
+        self.results.put(diff_wrapper)
+
+    def _create_vardiffs(self, varname, dim_indices={}):
+        """Create and return a VarDiffs object.
+
+        Assumes that the given varname and dim_indices are present on both files
+
+        Arguments:
+        varname: variable name
+        dim_indices: dictionary of (dimname:index) pairs giving dimension index or
+            indices to use for slicing the data (should agree with index_info)
+        """
+
+        var_is_numeric = True
+        # Verify that the variable is in both files and can actually be compared
+        for f in (self._file1, self._file2):
+            if (f.has_variable(varname)):
+                var_is_numeric &= f.is_var_numeric(varname)
+
+        if (var_is_numeric):
+            v1 = self._file1.get_vardata(varname, dim_indices)
+            v2 = self._file2.get_vardata(varname, dim_indices)
+            if (v1.shape == v2.shape):
+                my_vardiffs = VarDiffs(varname, v1, v2)
+            else:
+                my_vardiffs = VarDiffsDimSizeDiff(varname)
+        else:
+            my_vardiffs = VarDiffsNonNumeric(varname)
+
+        return my_vardiffs
 
 
 class _DiffWrapper(object):
@@ -387,4 +380,3 @@ def diff_wrapper_sort_key(diff_wrapper):
         # make sure an index of 'None' appears before any numeric index
         index = float("-inf")
     return (name, index)
-

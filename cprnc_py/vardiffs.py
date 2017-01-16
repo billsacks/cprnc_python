@@ -58,10 +58,8 @@ class VarDiffs(object):
               "RMS {varname:<32}{rms:11.4E}".format(varname=self._varname, rms=self._rmse) + \
               " " * 11 + \
               "NORMALIZED {normalized:11.4E}".format(normalized=self._normalized_rmse)
-            
-        return mystr
-        
 
+        return mystr
 
     # ------------------------------------------------------------------------
     # Public methods
@@ -71,7 +69,7 @@ class VarDiffs(object):
         """Return True if the variables have any elements that differ.
 
         Only consider points that are unmasked in both variables.
-        
+
         If dimension sizes / shapes differ, return False."""
 
         return self._vars_differ
@@ -97,7 +95,7 @@ class VarDiffs(object):
         """Return True if the fields are not shared"""
 
         return False
-    
+
     # ------------------------------------------------------------------------
     # Private methods
     # ------------------------------------------------------------------------
@@ -181,7 +179,7 @@ class VarDiffs(object):
             return False
         else:
             return True
-    
+
     def _compute_masks_differ(self, var1, var2):
         if (np.array_equal(
             ma.getmaskarray(var1),
