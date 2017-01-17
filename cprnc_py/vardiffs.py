@@ -107,9 +107,11 @@ class VarDiffs(object):
         if (self.dims_differ()):
             self._vars_differ = False
             self._masks_differ = False
-            self._rmse = 0.
-            self._normalized_rmse = 0.
-            self._relative_diffs = 0.
+            self._rmse = float('nan')
+            self._normalized_rmse = float('nan')
+            self._rdiff_max = float('nan')
+            self._rdiff_maxloc = float('nan')
+            self._rdiff_logavg = float('nan')
         else:
             self._masks_differ = self._compute_masks_differ(var1, var2)
 
