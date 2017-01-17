@@ -58,10 +58,8 @@ class VarDiffs(object):
               "RMS {varname:<32}{rms:11.4E}".format(varname=self._varname, rms=self._rmse) + \
               " " * 11 + \
               "NORMALIZED {normalized:11.4E}".format(normalized=self._normalized_rmse)
-            
-        return mystr
-        
 
+        return mystr
 
     # ------------------------------------------------------------------------
     # Public methods
@@ -71,7 +69,7 @@ class VarDiffs(object):
         """Return True if the variables have any elements that differ.
 
         Only consider points that are unmasked in both variables.
-        
+
         If dimension sizes / shapes differ, return False."""
 
         return self._vars_differ
@@ -97,7 +95,7 @@ class VarDiffs(object):
         """Return True if the fields are not shared"""
 
         return False
-    
+
     # ------------------------------------------------------------------------
     # Private methods
     # ------------------------------------------------------------------------
@@ -181,7 +179,7 @@ class VarDiffs(object):
             return False
         else:
             return True
-    
+
     def _compute_masks_differ(self, var1, var2):
         if (np.array_equal(
             ma.getmaskarray(var1),
@@ -221,7 +219,14 @@ class VarDiffs(object):
         return nrmse
 
 class VarDiffsNonAnalyzable(object):
-    """This version of VarDiffs is used for non-analyzable variables.
+    """
+    This version of VarDiffs is used for non-analyzable variables.
+    Non-analyzable variables include non-numeric variables,
+    pairs of variables with different dimension sizes,
+    and variables not shared between files.
+
+    Note that this is different from the Fortran version of CPRNC,
+    where non-analyzable variables are only those that contain characters.
 
     Usage is the same as for the standard Vardiffs.
     """
@@ -270,7 +275,7 @@ class VarDiffsDimSizeDiff(VarDiffsNonAnalyzable):
     def dims_differ(self):
         return True
 
-class VarDiffsUnsharedVar(object):
+class VarDiffsUnsharedVar(VarDiffsNonAnalyzable):
     """This version of VarDiffs is used for variables which aren't shared.
 
     Usage is the same as for the standard VarDiffs.
@@ -293,21 +298,9 @@ class VarDiffsUnsharedVar(object):
             other_filenum = 2
         else:
             other_filenum = 1
-        mystr = "Field found in file {} not found in file {}".format(
+        mystr = "Field found in file {} not found in file {} could not be analyzed".format(
             self._found_in_filenum, other_filenum)
         return mystr
 
-    def vars_differ(self):
-        return False
-
-    def masks_differ(self):
-        return False
-
-    def dims_differ(self):
-        return False
-
     def fields_nonshared(self):
         return True
-
-    def could_not_be_analyzed(self):
-        return False
