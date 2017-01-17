@@ -219,7 +219,14 @@ class VarDiffs(object):
         return nrmse
 
 class VarDiffsNonAnalyzable(object):
-    """This version of VarDiffs is used for non-analyzable variables.
+    """
+    This version of VarDiffs is used for non-analyzable variables.
+    Non-analyzable variables include non-numeric variables,
+    pairs of variables with different dimension sizes,
+    and variables not shared between files.
+
+    Note that this is different from the Fortran version of CPRNC,
+    where non-analyzable variables are only those that contain characters.
 
     Usage is the same as for the standard Vardiffs.
     """
@@ -268,7 +275,7 @@ class VarDiffsDimSizeDiff(VarDiffsNonAnalyzable):
     def dims_differ(self):
         return True
 
-class VarDiffsUnsharedVar(object):
+class VarDiffsUnsharedVar(VarDiffsNonAnalyzable):
     """This version of VarDiffs is used for variables which aren't shared.
 
     Usage is the same as for the standard VarDiffs.
@@ -291,21 +298,9 @@ class VarDiffsUnsharedVar(object):
             other_filenum = 2
         else:
             other_filenum = 1
-        mystr = "Field found in file {} not found in file {}".format(
+        mystr = "Field found in file {} not found in file {} could not be analyzed".format(
             self._found_in_filenum, other_filenum)
         return mystr
 
-    def vars_differ(self):
-        return False
-
-    def masks_differ(self):
-        return False
-
-    def dims_differ(self):
-        return False
-
     def fields_nonshared(self):
         return True
-
-    def could_not_be_analyzed(self):
-        return False

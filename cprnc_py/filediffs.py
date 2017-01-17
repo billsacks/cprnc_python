@@ -1,6 +1,6 @@
 from __future__ import print_function
+
 from multiprocessing import Process, Queue
-from cprnc_py.multiprocessing_fake import PoolFake
 from cprnc_py.vardiffs import (VarDiffs, VarDiffsNonNumeric, VarDiffsUnsharedVar, VarDiffsDimSizeDiff)
 
 class FileDiffs(object):
@@ -68,21 +68,18 @@ class FileDiffs(object):
             mystr = mystr + str(var) + "\n\n"
 
         mystr = mystr + "SUMMARY of cprnc:\n"
-        # FIXME(wjs, 2015-12-26) is it right to include the
-        # could-not-be-analyzed fields in the 'total number' count? (If not,
-        # consider wording the print of the could not be analyzed number
-        # differently, too):
+
         mystr = mystr + " A total number of {0:6d} fields were compared\n".format(
-            self.num_vars())
+            self.num_vars_compared())
         mystr = mystr + "          of which {0:6d} had non-zero differences\n".format(
             self.num_vars_differ())
         mystr = mystr + "               and {0:6d} had differences in fill patterns\n".format(
             self.num_masks_differ())
-        mystr = mystr + "               and {0:6d} had differences in dimension sizes\n".format(
-            self.num_dims_differ())
         mystr = mystr + " A total number of {0:6d} fields could not be analyzed (e.g., strings and fields with different dimension sizes)\n".format(
             self.num_could_not_be_analyzed())
-        mystr = mystr + " A total number of {0:6d} fields did not exist in both files\n".format(
+        mystr = mystr + "          of which {0:6d} had differences in dimension sizes\n".format(
+            self.num_dims_differ())
+        mystr = mystr + "               and {0:6d} fields did not exist in both files\n".format(
             self.num_nonshared_fields())
 
         mystr = mystr + "  diff_test: the two files seem to be "
@@ -102,6 +99,21 @@ class FileDiffs(object):
         """Returns a count of the total number of variables."""
 
         return len(self._vardiffs_list)
+
+    def num_vars_compared(self):
+        """Returns a count of the total number of compared variables."""
+
+        # This value cannot be computed the way the Fortran does
+        # To match the Fortran, we'd need to implement
+        # do i=1,nvars
+        #   v1 => file(1)%var(i)
+        #   if (file_has_unlimited_dim .and. any(v1%dimids == file(1)%unlimdimid)) then
+        #     vtotal = vtotal + (udim%dimsize / udim%kount) + 1
+        #   else
+        #     vtotal = vtotal+1
+        #   end if
+        # end do
+        return self.num_vars() - self.num_could_not_be_analyzed()
 
     def num_vars_differ(self):
         """Returns a count of the number of variables with elements that
@@ -157,10 +169,10 @@ class FileDiffs(object):
         """
 
         self.results = Queue()
-        procs = []
         vlist1 = set(self._file1.get_varlist())
         vlist2 = set(self._file2.get_varlist())
         vlist_shared = vlist1 & vlist2
+        procs = []
         for varname in vlist_shared:
             if index is None:
                 p = Process(target = _create_vardiffs_wrapper_nodim,
@@ -174,7 +186,6 @@ class FileDiffs(object):
 
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
-        vlist_nonshared = vlist_1_not_2 | vlist_2_not_1
         for i, vlist_nonshared in enumerate((vlist_1_not_2, vlist_2_not_1)):
             found_in_filenum = i + 1
             for varname in vlist_nonshared:
@@ -182,7 +193,7 @@ class FileDiffs(object):
                 diff_wrapper = _DiffWrapper.no_slicing(var_diffs, varname)
                 self._add_one_vardiffs(diff_wrapper)
 
-        self._vardiffs_list.sort(key=diff_wrapper_sort_key)
+        self._vardiffs_list.sort(key=_diff_wrapper_sort_key)
 
         # Make certain we don't attempt to use the queue outside of here
         self.results = None
@@ -223,7 +234,7 @@ class FileDiffs(object):
                                                        index, index)
                 self._add_one_vardiffs(diff_wrapper)
 
-        self._vardiffs_list.sort(key=diff_wrapper_sort_key)
+        self._vardiffs_list.sort(key=_diff_wrapper_sort_key)
 
         # Make certain we don't attempt to use the queue outside of here
         self.results = None
@@ -348,17 +359,15 @@ class _DiffWrapper(object):
         elif self.index1 is None and self.index2 is None:
             pass
         else:
-            if self.index1 is None:
-                index1_str = "   All"
-            else:
-                index1_str = "{:6d}".format(self.index1 + 1)
-            if self.index2 is None:
-                index2_str = "   All"
-            else:
-                index2_str = "{:6d}".format(self.index2 + 1)
+            index_str = {}
+            for idx in (self.index1, self.index2):
+                if idx is None:
+                    index_str[idx] = "   All"
+                else:
+                    index_str[idx] = "{:6d}".format(idx + 1)
 
             mystr = mystr + "{dimname} index: {index1} {index2}".format(
-                dimname=self.separate_dim, index1=index1_str, index2=index2_str)
+                dimname=self.separate_dim, index1=index_str[self.index1], index2=index_str[self.index2])
 
         mystr = mystr + "\n"
         mystr = mystr + str(self.var_diffs)
@@ -368,7 +377,7 @@ class _DiffWrapper(object):
 # Sort functions
 # ------------------------------------------------------------------------
 
-def diff_wrapper_sort_key(diff_wrapper):
+def _diff_wrapper_sort_key(diff_wrapper):
     """Given a _DiffWrapper object, returns a key that can be used for sorting
 
     Args:
@@ -379,4 +388,4 @@ def diff_wrapper_sort_key(diff_wrapper):
     if index is None:
         # make sure an index of 'None' appears before any numeric index
         index = float("-inf")
-    return (name, index)
+    return (type(diff_wrapper.var_diffs), name, index)
