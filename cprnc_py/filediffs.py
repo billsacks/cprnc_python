@@ -175,7 +175,7 @@ class FileDiffs(object):
         procs = []
         for varname in vlist_shared:
             if index is None:
-                p = Process(target = _create_vardiffs_wrapper_nodim,
+                p = Process(target = self._create_vardiffs_wrapper_nodim,
                             args = (varname))
                 p.start()
                 procs.append(p)
@@ -366,11 +366,11 @@ class _DiffWrapper(object):
                 else:
                     index_str[idx] = "{:6d}".format(idx + 1)
 
-            mystr = mystr + "{dimname} index: {index1} {index2}".format(
-                dimname=self.separate_dim, index1=index_str[self.index1], index2=index_str[self.index2])
+            mystr = mystr + "{dimname} indices: {index1} {index2}".format(
+                dimname=self.separate_dim, index1=index_str[self.index1],
+                index2=index_str[self.index2])
 
-        mystr = mystr + "\n"
-        mystr = mystr + str(self.var_diffs)
+        mystr = mystr + "\n" + str(self.var_diffs)
         return mystr
 
 # ------------------------------------------------------------------------
