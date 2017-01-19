@@ -53,6 +53,7 @@ class FileDiffs(object):
         self._file1 = file1
         self._file2 = file2
 
+        # TODO(mfd, 2017-01-19): Respect nprocs!
         self._nprocs = nprocs
 
         if separate_dim:
