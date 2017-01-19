@@ -388,4 +388,4 @@ def _diff_wrapper_sort_key(diff_wrapper):
     if index is None:
         # make sure an index of 'None' appears before any numeric index
         index = float("-inf")
-    return (type(diff_wrapper.var_diffs), name, index)
+    return (str(type(diff_wrapper.var_diffs)), name, index)
