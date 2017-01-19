@@ -169,6 +169,7 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
+        self.work = Queue()
         self.results = Queue()
         vlist1 = set(self._file1.get_varlist())
         vlist2 = set(self._file2.get_varlist())
@@ -208,11 +209,13 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        self.results = Queue()
-        procs = []
         vlist1 = set(self._file1.get_varlist_bydim(dimname))
         vlist2 = set(self._file2.get_varlist_bydim(dimname))
         vlist_shared = vlist1 & vlist2
+
+        self.results = Queue(len(vlist_shared))
+
+        procs = []
         for varname_index in vlist_shared:
             if varname_index[1] is None:
                 p = Process(target = self._create_vardiffs_wrapper,
@@ -222,6 +225,8 @@ class FileDiffs(object):
         self._vardiffs_list = []
         for p in procs:
             p.join()
+
+        while self.results.empty() == False:
             self._vardiffs_list.append(self.results.get())
 
         vlist_1_not_2 = vlist1 - vlist2
