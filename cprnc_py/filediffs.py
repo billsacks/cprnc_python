@@ -169,7 +169,6 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        self.work = Queue()
         self.results = Queue()
         vlist1 = set(self._file1.get_varlist())
         vlist2 = set(self._file2.get_varlist())
