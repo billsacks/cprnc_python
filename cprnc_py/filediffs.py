@@ -169,6 +169,7 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
+        self.work = Queue()
         self.results = Queue()
         vlist1 = set(self._file1.get_varlist())
         vlist2 = set(self._file2.get_varlist())
@@ -208,21 +209,38 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        self.results = Queue()
-        procs = []
         vlist1 = set(self._file1.get_varlist_bydim(dimname))
         vlist2 = set(self._file2.get_varlist_bydim(dimname))
         vlist_shared = vlist1 & vlist2
-        for varname_index in vlist_shared:
-            if varname_index[1] is None:
+
+        self.results = Queue(len(vlist_shared))
+
+        procs = []
+        for varname, index in vlist_shared:
+            if index is None:
                 p = Process(target = self._create_vardiffs_wrapper,
-                            args = (varname_index, dimname))
-                p.start()
-                procs.append(p)
+                            args = ((varname, None), None))
+            else:
+                p = Process(target = self._create_vardiffs_wrapper,
+                            args = ((varname, index), dimname))
+            p.start()
+            procs.append(p)
+
+        expected_vars = len(vlist_shared)
         self._vardiffs_list = []
-        for p in procs:
-            p.join()
-            self._vardiffs_list.append(self.results.get())
+        i = 0
+        while i < expected_vars:
+            try:
+                result = self.results.get()
+                if result is not None:
+                    self._vardiffs_list.append(result)
+                i += 1
+            except KeyboardInterrupt:
+                for p in procs:
+                    if p.is_alive():
+                        print("Killing {}".format(p))
+                        p.terminate()
+                        expected_vars -= 1
 
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
