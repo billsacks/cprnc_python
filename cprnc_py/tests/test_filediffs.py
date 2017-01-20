@@ -123,23 +123,6 @@ class TestFilediffs(CustomAssertions):
         num_differ = mydiffs.num_dims_differ()
         self.assertEqual(num_differ, 2)
 
-    def test_numDimsDiffer_withVariable2WithoutSeparateDim(self):
-        # If we ask to compare two variables separated by some dimension, where
-        # the variable has that dimension in file 1 but not in file 2, we should
-        # get N dims_differ, where N is the size of the dimension in file 1
-        data = np.array([[1,2,3],[4,5,6]])
-        variable1 = NetcdfVariableFake(data, ('dim1', 'dim2'))
-        variable2 = NetcdfVariableFake(data, ('dim1', 'dim3'))
-        file1 = NetcdfFileFake(
-            self.FILENAME1,
-            variables = {'var1': variable1})
-        file2 = NetcdfFileFake(
-            self.FILENAME2,
-            variables = {'var1': variable2})
-        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
-        num_differ = mydiffs.num_dims_differ()
-        self.assertEqual(num_differ, 3)
-
     # ------------------------------------------------------------------------
     # Tests of num_could_not_be_analyzed
     # ------------------------------------------------------------------------
@@ -158,6 +141,137 @@ class TestFilediffs(CustomAssertions):
         mydiffs = FileDiffs(file1, file2, separate_dim=None)
         num_could_not_be_analyzed = mydiffs.num_could_not_be_analyzed()
         self.assertEqual(num_could_not_be_analyzed, 1)
+
+    # ------------------------------------------------------------------------
+    # Tests of num_nonshared_fields
+    # ------------------------------------------------------------------------
+
+    def test_numNonsharedFields_noNonsharedFields(self):
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(np.array([1,2,3])),
+                         'var2': NetcdfVariableFake(np.array([4,5,6]))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(np.array([1,2,3])),
+                         'var2': NetcdfVariableFake(np.array([4,5,6]))})
+        mydiffs = FileDiffs(file1, file1, separate_dim=None)
+        num_nonshared = mydiffs.num_nonshared_fields()
+        self.assertEqual(num_nonshared, 0)
+
+    def test_numNonsharedFields_withNonsharedFields(self):
+        # Both files have var1; file1 has var2, whereas file2 has var3
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(np.array([1,2,3])),
+                         'var2': NetcdfVariableFake(np.array([4,5,6]))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(np.array([1,2,3])),
+                         'var3': NetcdfVariableFake(np.array([4,5,6]))})
+        mydiffs = FileDiffs(file1, file2, separate_dim=None)
+        num_nonshared = mydiffs.num_nonshared_fields()
+        # Total number of nonshared fields is equal to (# in file1 not in file2)
+        # + (# in file2 not in file1)
+        self.assertEqual(num_nonshared, 2)
+
+    def test_numNonsharedFields_separateDim_noNonsharedFields(self):
+        data = np.array([[1,2,3],[4,5,6]])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2')),
+                         'var2': NetcdfVariableFake(data, ('dim3', 'dim2'))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2')),
+                         'var2': NetcdfVariableFake(data, ('dim3', 'dim2'))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        num_nonshared = mydiffs.num_nonshared_fields()
+        self.assertEqual(num_nonshared, 0)
+
+    def test_numNonsharedFields_separateDim_withNonsharedFields(self):
+        # Both files have var1; file1 has var2, whereas file2 has var3
+        data = np.array([[1,2,3],[4,5,6]])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2')),
+                         'var2': NetcdfVariableFake(data, ('dim3', 'dim2'))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2')),
+                         'var3': NetcdfVariableFake(data, ('dim3', 'dim2'))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        num_nonshared = mydiffs.num_nonshared_fields()
+        # Total number of nonshared fields is equal to (# in file1 not in file2)
+        # + (# in file2 not in file1). Fields are counted once for each slice
+        # along the separate_dim.
+        self.assertEqual(num_nonshared, 6)
+
+    def test_numNonsharedFields_separateDim_withNonsharedUnseparatedFields(self):
+        # Both files have var1; file1 has var2, whereas file2 has var3; those
+        # unshared fields do not have the separate_dim
+        data = np.array([[1,2,3],[4,5,6]])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2')),
+                         'var2': NetcdfVariableFake(data, ('dim3', 'dim4'))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2')),
+                         'var3': NetcdfVariableFake(data, ('dim3', 'dim4'))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        num_nonshared = mydiffs.num_nonshared_fields()
+        # Total number of nonshared fields is equal to (# in file1 not in file2)
+        # + (# in file2 not in file1). The nonshared fields don't have the
+        # separate_dim, so each is counted once.
+        self.assertEqual(num_nonshared, 2)
+
+    def test_numNonsharedFields_separateDim_varHasDimInOne(self):
+        # Doing diffs with a separate_dim, where a variable has the separate_dim
+        # in one file but not in the other
+        data = np.array([[1,2,3],[4,5,6]])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim2'))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(data, ('dim1', 'dim3'))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        num_nonshared = mydiffs.num_nonshared_fields()
+        # Total number of nonshared fields is equal to (# in file1 not in file2)
+        # + (# in file2 not in file1). In file1, we effectively have 3
+        # variables, since var1 is separated along dim2; none of these are
+        # present in file2, since var1 there has no dim2. In file2 we have 1
+        # variable (var1 with no separate_dim), which is not found in file1.
+        self.assertEqual(num_nonshared, 4)
+
+    def test_numNonsharedFields_separateDim_differentNumberOfSlices(self):
+        # Doing diffs with a separate_dim, where variable has a different number
+        # of slices in the two variables. There should be one nonshared field
+        # for each missing slice. Note that we treat this as non-shared, rather
+        # than a dim-diff; this feels like the right thing to do, both in terms
+        # of:
+        # - By analogy to the fact that we treat each time slice as a separate
+        #   variable for the sake of analysis
+        # - It seems like this is more likely to do the Right Thing in the case
+        #   of intentional / expected differences in the number of time slices in
+        #   the file
+        data1 = np.array([[1,2,3,4],[5,6,7,8]])
+        data2 = np.array([[1,2],[5,6]])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(data1, ('dim1', 'dim2'))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(data2, ('dim1', 'dim2'))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        num_nonshared = mydiffs.num_nonshared_fields()
+        self.assertEqual(num_nonshared, 2)
+
+        # Also make sure that other counts are correct in this case
+        self.assertEqual(mydiffs.num_vars(), 4)
+        self.assertEqual(mydiffs.num_vars_differ(), 0)
+        self.assertEqual(mydiffs.num_dims_differ(), 0)
 
     # ------------------------------------------------------------------------
     # Tests of files_differ

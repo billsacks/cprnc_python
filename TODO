@@ -1,21 +1,10 @@
 Essential
 ---------
 
-- Implement get_global_attributes for netcdf_file_netcdf4.py
-
-- Implement get_attributes for netcdf_variable_netcdf4.py
-
-- Handle fields present on file1 but absent from file2
-  - First add a test of this to the fortran cprnc to make sure our handling
-    matches the fortran's handling; test a multi-time variable to see how this
-    is handled when there are multiple time slices
-
 - Check if scalar variables are handled correctly; if not, handle them
   specially, either by:
   - Fixing existing VarDiffs / VarInfo to handle scalar variables
   - Or making a separate VarDiffs class for scalar variables
-
-- Fix normalized RMS error
 
 - Compute and print other statistics, as is done for cprnc
 
@@ -42,10 +31,6 @@ Essential
 
 Nice to have
 ------------
-
-- Add tests of the Netcdf4 interface
-
-- Parallelize analysis loop, if this improves performance
 
 - Improve performance in other ways?
 

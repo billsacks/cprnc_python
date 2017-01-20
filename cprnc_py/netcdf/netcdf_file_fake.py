@@ -60,6 +60,21 @@ class NetcdfFileFake(NetcdfFile):
         """
         return self._get_dimsize_from_variables(dimname)
 
+    def get_dimlist(self):
+        """Returns a list of dimensions in the netcdf file.
+
+        Assumes that we can get the list of dimensions from the dimensions
+        associated with each variables.
+        """
+        mydims = set()
+        for var in self._variables:
+            mydims = mydims | set(self._variables[var].get_dimensions())
+        return list(mydims)
+
     def _get_variable(self, varname):
         """Returns a NetcdfVariable-like object for the given variable"""
         return self._variables[varname]
+
+    def has_variable(self, varname):
+        """Returns True if the Netcdf file has the requested variable, otherwise False"""
+        return varname in self._variables

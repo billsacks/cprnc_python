@@ -1,14 +1,30 @@
 # Wrapper for scipy.io.netcdf, providing a common interface
 
-from netcdf import netcdf_file as scipy_netcdf_file
+from cprnc_py.netcdf.scipy.io.netcdf import netcdf_file as scipy_netcdf_file
 from cprnc_py.netcdf.netcdf_file import NetcdfFile
 from cprnc_py.netcdf.netcdf_variable_scipy import NetcdfVariableScipy
+from cprnc_py.netcdf.fs_utils import tmpfs_copy
+
+import warnings
+import os
 
 class NetcdfFileScipy(NetcdfFile):
     def __init__(self, filename, mode='r'):
         super(NetcdfFileScipy, self).__init__()
-        self._file = scipy_netcdf_file(filename, mode)
+        self._copy = tmpfs_copy(filename)
+        if self._copy:
+            self._file = scipy_netcdf_file(self._copy, mode)
+        else:
+            self._file = scipy_netcdf_file(filename, mode)
         self._filename = filename
+
+    def __del__(self):
+        if self._copy:
+            try:
+                os.remove(self._copy)
+            except:
+                warnings.warn("Could not remove copy " + self._copy,
+                              category=RuntimeWarning)
 
     def get_varlist(self):
         """Returns a list of variables in the netcdf file"""
@@ -24,6 +40,10 @@ class NetcdfFileScipy(NetcdfFile):
         # I don't like accessing the private _attributes variable, but I don't
         # see any other way to do this
         return self._file._attributes
+
+    def get_dimlist(self):
+        """Returns a list of dimensions in the netcdf file"""
+        return self._file.dimensions.keys()
 
     def get_dimsize(self, dimname):
         """Returns the size of the given dimension.
@@ -50,3 +70,6 @@ class NetcdfFileScipy(NetcdfFile):
 
         return NetcdfVariableScipy(self._file.variables[varname])
 
+    def has_variable(self, varname):
+        """Returns True if the Netcdf file has the requested variable, otherwise False"""
+        return varname in self._file.variables

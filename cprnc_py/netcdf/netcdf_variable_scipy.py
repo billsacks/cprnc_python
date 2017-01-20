@@ -47,11 +47,11 @@ class NetcdfVariableScipy(NetcdfVariable):
         dim_slices should match the dimensionality of this variable
         """
 
-        # FIXME(wjs, 2015-12-31) Will this work on scalar data?
         if len(dim_slices) > 0:
             vardata = self._var[dim_slices].copy()
         else:
-            vardata = np.ndarray((0))
+            # Scalar data
+            vardata = np.array(self._var.getValue())
         # NOTE(wjs, 2015-12-23) We do our own application of the mask, rather
         # than relying on the maskandscale argument to netcdf_file, for two
         # reasons: (1) maskandscale was added very recently, and is not yet

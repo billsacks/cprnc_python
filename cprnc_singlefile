@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-cprnc: program to compare two netcdf files
+cprnc: program to inspect netcdf files
 """
 
 from __future__ import print_function
@@ -29,7 +29,7 @@ import traceback
 #
 # other modules in this package
 #
-from cprnc_py.filediffs import FileDiffs
+from cprnc_py.fileinfo import FileInfo
 from cprnc_py.netcdf.netcdf_wrapper import netcdf
 
 # -------------------------------------------------------------------------------
@@ -43,12 +43,10 @@ def commandline_options():
 
     """
     parser = argparse.ArgumentParser(
-        description='Compare two netcdf files')
+        description='Inspect netcdf files')
 
-    parser.add_argument('file1',
-                        help='File 1 for comparison')
-    parser.add_argument('file2',
-                        help='File 2 for comparison')
+    parser.add_argument('file',
+                        help='File to inspect')
 
     parser.add_argument('--np', dest='nprocs', default=None, type=int,
                         help="Number of processors; if not specified, use 1 proc "
@@ -76,10 +74,9 @@ def commandline_options():
 # -------------------------------------------------------------------------------
 
 def main(options):
-    ncfile1 = netcdf(options.file1)
-    ncfile2 = netcdf(options.file2)
-    diffs = FileDiffs(ncfile1, ncfile2, separate_dim="time", nprocs=options.nprocs)
-    print(diffs)
+    ncfile = netcdf(options.file)
+    finfo = FileInfo(ncfile, separate_dim="time", nprocs=options.nprocs)
+    print(finfo)
     return 0
 
 

@@ -124,6 +124,10 @@ class NetcdfFile(object):
         """Returns the size of the given dimension"""
         raise NotImplementedError
 
+    def has_variable(self, varname):
+        """Returns True if the file has the variable, otherwise False"""
+        raise NotImplementedError
+
     # ------------------------------------------------------------------------
     # Private methods implemented here
     # ------------------------------------------------------------------------

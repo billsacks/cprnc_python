@@ -40,8 +40,6 @@ import warnings
 import weakref
 from operator import mul
 import mmap as mm
-import sys
-import types
 
 import numpy as np
 from numpy.compat import asbytes, asstr
@@ -49,22 +47,7 @@ from numpy import fromstring, dtype, empty, array, asarray
 from numpy import little_endian as LITTLE_ENDIAN
 from functools import reduce
 
-PY3 = sys.version_info[0] == 3
-
-if PY3:
-    string_types = str,
-    integer_types = int,
-    class_types = type,
-    text_type = str
-    binary_type = bytes
-
-    MAXSIZE = sys.maxsize
-else:
-    string_types = basestring,
-    integer_types = (int, long)
-    class_types = (type, types.ClassType)
-    text_type = unicode
-    binary_type = str
+from scipy._lib.six import integer_types, text_type, binary_type
 
 ABSENT = b'\x00\x00\x00\x00\x00\x00\x00\x00'
 ZERO = b'\x00\x00\x00\x00'
