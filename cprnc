@@ -57,6 +57,9 @@ def commandline_options():
                         "the former will invoke a true multiprocessing package, which carries "
                         "some overhead (this is mainly useful for testing).")
 
+    parser.add_argument('--show-same', action='store_true',
+                        help='show variables which are the same')
+
     parser.add_argument('--backtrace', action='store_true',
                         help='show exception backtraces as extra debugging '
                         'output')
@@ -78,10 +81,9 @@ def commandline_options():
 def main(options):
     ncfile1 = netcdf(options.file1)
     ncfile2 = netcdf(options.file2)
-    diffs = FileDiffs(ncfile1, ncfile2, separate_dim="time", nprocs=options.nprocs)
+    diffs = FileDiffs(ncfile1, ncfile2, show_same=options.show_same, separate_dim="time", nprocs=options.nprocs)
     print(diffs)
     return 0
-
 
 if __name__ == "__main__":
     options = commandline_options()

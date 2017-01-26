@@ -274,6 +274,9 @@ class VarDiffsDimSizeDiff(VarDiffsNonAnalyzable):
         mystr = "Variable with different dimension sizes could not be analyzed"
         return mystr
 
+    def vars_differ(self):
+        return True
+
     def dims_differ(self):
         return True
 
@@ -303,6 +306,9 @@ class VarDiffsUnsharedVar(VarDiffsNonAnalyzable):
         mystr = "Field found in file {} not found in file {} could not be analyzed".format(
             self._found_in_filenum, other_filenum)
         return mystr
+
+    def vars_differ(self):
+        return True
 
     def fields_nonshared(self):
         return True

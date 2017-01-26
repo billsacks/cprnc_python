@@ -32,12 +32,13 @@ class FileDiffs(object):
     # Constructor and other special methods
     # ------------------------------------------------------------------------
 
-    def __init__(self, file1, file2, separate_dim="time", nprocs=None):
+    def __init__(self, file1, file2, show_same, separate_dim="time", nprocs=None):
         """Create a FileDiffs object.
 
         Arguments:
         file1: netcdf file object with methods get_varlist, get_vardata, etc.
         file2: netcdf file object
+        show_same: Whether to show variables which are the same or not
         separate_dim: name of dimension to separate along
             If not None or "", then for variables containing the given dimension,
             analysis is done separately for each slice along this dimension
@@ -53,6 +54,8 @@ class FileDiffs(object):
         self._file1 = file1
         self._file2 = file2
 
+        self._show_same = show_same
+
         # TODO(mfd, 2017-01-19): Respect nprocs!
         self._nprocs = nprocs
 
@@ -66,7 +69,9 @@ class FileDiffs(object):
         mystr = ""
 
         for var in self._vardiffs_list:
-            mystr = mystr + str(var) + "\n\n"
+            v = var.var_diffs
+            if v.vars_differ() or v.could_not_be_analyzed() or self._show_same:
+                mystr = mystr + str(var) + "\n\n"
 
         mystr = mystr + "SUMMARY of cprnc:\n"
 
