@@ -153,23 +153,24 @@ class VarDiffs(object):
             rdiff_maxloc = -1
             rdiff_logavg = np.float('nan')
         else:
-            maxvals = np.maximum(np.abs(var1), np.abs(var2))
-            rdiff = np.abs(self._compute_diffs(var1, var2)) / maxvals
+            differences = self._compute_diffs(var1, var2) != 0
+            diff_vals = self._compute_diffs(var1, var2)[differences]
+            maxvals = np.maximum(np.abs(var1), np.abs(var2))[differences]
+            rdiff = np.abs(diff_vals) / maxvals.astype(np.float)
             rdiff_max = np.max(rdiff)
             rdiff_maxloc = np.argmax(rdiff)
-            differences = self._compute_diffs(var1, var2) != 0
             numDiffs = np.sum(differences)
             if numDiffs > 0:
                 # Compute the sum of logs by taking the products of the logands; +1 if the logand is 0
                 # Then take the log of the result
                 # Since the log(1) is 0, this does not affect the final sum
-                rdiff_prod = np.prod(rdiff[differences])
+                rdiff_prod = np.prod(rdiff)
                 if rdiff_prod != np.float('inf') and rdiff_prod > 0.0:
                     rdiff_logsum = -math.log10(rdiff_prod)
                 else:
                     # We need to use a different (slower, less accurate) method of computing this,
                     # the product either overflowed or underflowed due to the small exponent
-                    rdiff_logs = np.log10(rdiff[differences])
+                    rdiff_logs = np.log10(rdiff)
                     rdiff_logsum = -np.sum(rdiff_logs)
                 rdiff_logavg = rdiff_logsum / np.sum(differences)
             else:
