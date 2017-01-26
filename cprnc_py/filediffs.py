@@ -1,7 +1,8 @@
 from __future__ import print_function
 
-from multiprocessing import Process, Queue
 from cprnc_py.vardiffs import (VarDiffs, VarDiffsNonNumeric, VarDiffsUnsharedVar, VarDiffsDimSizeDiff)
+
+from cprnc_py.process_manager import WorkObject, Process_Manager
 
 class FileDiffs(object):
     """This class computes statistics about the differences between two netcdf
@@ -169,21 +170,13 @@ class FileDiffs(object):
         Assumes that globals _file1 and _file2 have already been set.
         """
 
-        self.results = Queue()
         vlist1 = set(self._file1.get_varlist())
         vlist2 = set(self._file2.get_varlist())
         vlist_shared = vlist1 & vlist2
-        procs = []
-        for varname in vlist_shared:
-            if index is None:
-                p = Process(target = self._create_vardiffs_wrapper_nodim,
-                            args = (varname))
-                p.start()
-                procs.append(p)
-        self._vardiffs_list = []
-        for p in procs:
-            p.join()
-            self._vardiffs_list.append(q.get())
+
+        with Process_Manager(self._nprocs) as proc_man:
+            work_list = WorkObject.vector_work(vlist_shared)
+            self._vardiffs_list = list(proc_man.work(work_list))
 
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
@@ -195,9 +188,6 @@ class FileDiffs(object):
                 self._add_one_vardiffs(diff_wrapper)
 
         self._vardiffs_list.sort(key=_diff_wrapper_sort_key)
-
-        # Make certain we don't attempt to use the queue outside of here
-        self.results = None
 
     def _add_vardiffs_separated_by_dim(self, dimname):
         """Add all of the vardiffs to self.
@@ -212,38 +202,20 @@ class FileDiffs(object):
         vlist2 = set(self._file2.get_varlist_bydim(dimname))
         vlist_shared = vlist1 & vlist2
 
-        self.results = Queue(len(vlist_shared))
+        with Process_Manager(self._nprocs) as proc_man:
+            work_list = []
+            for varname, index in vlist_shared:
+                if index is None:
+                    work_list.append(WorkObject(self._create_vardiffs_wrapper,
+                                                [(varname, None), None]))
+                else:
+                    work_list.append(WorkObject(self._create_vardiffs_wrapper,
+                                                [(varname, index), dimname]))
 
-        procs = []
-        for varname, index in vlist_shared:
-            if index is None:
-                p = Process(target = self._create_vardiffs_wrapper,
-                            args = ((varname, None), None))
-            else:
-                p = Process(target = self._create_vardiffs_wrapper,
-                            args = ((varname, index), dimname))
-            p.start()
-            procs.append(p)
-
-        expected_vars = len(vlist_shared)
-        self._vardiffs_list = []
-        i = 0
-        while i < expected_vars:
-            try:
-                result = self.results.get()
-                if result is not None:
-                    self._vardiffs_list.append(result)
-                i += 1
-            except KeyboardInterrupt:
-                for p in procs:
-                    if p.is_alive():
-                        print("Killing {}".format(p))
-                        p.terminate()
-                        expected_vars -= 1
+            self._vardiffs_list = list(proc_man.work(work_list))
 
         vlist_1_not_2 = vlist1 - vlist2
         vlist_2_not_1 = vlist2 - vlist1
-        vlist_nonshared = vlist_1_not_2 | vlist_2_not_1
         for i, vlist_nonshared in enumerate((vlist_1_not_2, vlist_2_not_1)):
             found_in_filenum = i + 1
             for (varname, index) in vlist_nonshared:
@@ -253,9 +225,6 @@ class FileDiffs(object):
                 self._add_one_vardiffs(diff_wrapper)
 
         self._vardiffs_list.sort(key=_diff_wrapper_sort_key)
-
-        # Make certain we don't attempt to use the queue outside of here
-        self.results = None
 
     def _add_one_vardiffs(self, diff_wrapper):
         """Add one _DiffWrapper object to the list."""
@@ -293,7 +262,7 @@ class FileDiffs(object):
             diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname,
                                                    dimname, index, index)
 
-        self.results.put(diff_wrapper)
+        return diff_wrapper
 
     def _create_vardiffs(self, varname, dim_indices={}):
         """Create and return a VarDiffs object.
