@@ -171,38 +171,9 @@ class FileDiffs(object):
     def _add_vardiffs(self):
         """Add all of the vardiffs to self.
 
-        Assumes that globals _file1 and _file2 have already been set.
+        Assumes that _file1 and _file2 have already been set.
         """
-
-        self.results = Queue()
-        vlist1 = set(self._file1.get_varlist())
-        vlist2 = set(self._file2.get_varlist())
-        vlist_shared = vlist1 & vlist2
-        procs = []
-        for varname in vlist_shared:
-            if index is None:
-                p = Process(target = self._create_vardiffs_wrapper_nodim,
-                            args = (varname))
-                p.start()
-                procs.append(p)
-        self._vardiffs_list = []
-        for p in procs:
-            p.join()
-            self._vardiffs_list.append(q.get())
-
-        vlist_1_not_2 = vlist1 - vlist2
-        vlist_2_not_1 = vlist2 - vlist1
-        for i, vlist_nonshared in enumerate((vlist_1_not_2, vlist_2_not_1)):
-            found_in_filenum = i + 1
-            for varname in vlist_nonshared:
-                var_diffs = VarDiffsUnsharedVar(varname, found_in_filenum)
-                diff_wrapper = _DiffWrapper.no_slicing(var_diffs, varname)
-                self._add_one_vardiffs(diff_wrapper)
-
-        self._vardiffs_list.sort(key=_diff_wrapper_sort_key)
-
-        # Make certain we don't attempt to use the queue outside of here
-        self.results = None
+        self._add_vardiffs_separated_by_dim(None)
 
     def _add_vardiffs_separated_by_dim(self, dimname):
         """Add all of the vardiffs to self.
@@ -210,23 +181,26 @@ class FileDiffs(object):
         For variables containing the given dimension, analysis is done
         separately for each slice along this dimension.
 
-        Assumes that globals _file1 and _file2 have already been set.
+        If dimname is None, do the analysis without slicing
+
+        Assumes that _file1 and _file2 have already been set.
         """
 
         vlist1 = set(self._file1.get_varlist_bydim(dimname))
         vlist2 = set(self._file2.get_varlist_bydim(dimname))
+
         vlist_shared = vlist1 & vlist2
 
-        self.results = Queue(len(vlist_shared))
+        results = Queue(len(vlist_shared))
 
         procs = []
         for varname, index in vlist_shared:
             if index is None:
                 p = Process(target = self._create_vardiffs_wrapper,
-                            args = ((varname, None), None))
+                            args = (results, varname))
             else:
                 p = Process(target = self._create_vardiffs_wrapper,
-                            args = ((varname, index), dimname))
+                            args = (results, varname, index, dimname))
             p.start()
             procs.append(p)
 
@@ -235,7 +209,7 @@ class FileDiffs(object):
         i = 0
         while i < expected_vars:
             try:
-                result = self.results.get()
+                result = results.get()
                 if result is not None:
                     self._vardiffs_list.append(result)
                 i += 1
@@ -259,31 +233,18 @@ class FileDiffs(object):
 
         self._vardiffs_list.sort(key=_diff_wrapper_sort_key)
 
-        # Make certain we don't attempt to use the queue outside of here
-        self.results = None
-
     def _add_one_vardiffs(self, diff_wrapper):
         """Add one _DiffWrapper object to the list."""
 
         self._vardiffs_list.append(diff_wrapper)
 
-    def _create_vardiffs_wrapper_nodim(self, varname):
-        """Create one DiffWrapper object, with no separation by dimension.
-        Arguments:
-        varname: string
-        """
-
-        self._create_vardiffs_wrapper((varname, None), None)
-
-    def _create_vardiffs_wrapper(self, varname_index, dimname=None):
+    def _create_vardiffs_wrapper(self, results, varname, index=None, dimname=None):
         """Create one DiffWrapper object.
 
         Arguments:
         varname_index: tuple (varname, index)
         dimname: dimension name (or None)
         """
-
-        (varname, index) = varname_index
 
         if index is None:
             var_diffs = self._create_vardiffs(varname)
@@ -298,7 +259,7 @@ class FileDiffs(object):
             diff_wrapper = _DiffWrapper.dim_sliced(var_diffs, varname,
                                                    dimname, index, index)
 
-        self.results.put(diff_wrapper)
+        results.put(diff_wrapper)
 
     def _create_vardiffs(self, varname, dim_indices={}):
         """Create and return a VarDiffs object.
