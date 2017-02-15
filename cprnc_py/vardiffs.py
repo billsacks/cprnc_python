@@ -41,8 +41,6 @@ class VarDiffs(object):
         """
 
         self._varname = varname
-        self._var1info = VarInfo(var1)
-        self._var2info = VarInfo(var2)
 
         # Compute all necessary statistics in initialization, so that we don't
         # have to hold onto the variables in memory for later use (in case the
@@ -105,6 +103,8 @@ class VarDiffs(object):
         self._diffs = None
         self._sums = None
         if (self.dims_differ()):
+            self._var1info = VarInfo(var1)
+            self._var2info = VarInfo(var2)
             self._vars_differ = False
             self._masks_differ = False
             self._rmse = float('nan')
@@ -121,6 +121,12 @@ class VarDiffs(object):
             # FIXME(wjs, 2016-01-04) Change the following to use pre-computed
             # abs diff?: check if any abs diff is > 0:
             self._vars_differ = not np.array_equal(var1c, var2c)
+
+            self._var1info = VarInfo(var1)
+            if self._vars_differ:
+                self._var2info = VarInfo(var2)
+            else:
+                self._var2info = self._var1info
 
             self._rmse = self._compute_rmse(var1c, var2c)
             self._normalized_rmse = self._compute_normalized_rmse(var1c, var2c)
@@ -158,7 +164,7 @@ class VarDiffs(object):
             maxvals = np.maximum(np.abs(var1), np.abs(var2))[differences]
             rdiff = np.abs(diff_vals) / maxvals.astype(np.float)
             rdiff_max = np.max(rdiff)
-            rdiff_maxloc = np.argmax(rdiff)
+            rdiff_maxloc = self._compute_maxloc(rdiff, differences)
             numDiffs = np.sum(differences)
             if numDiffs > 0:
                 # Compute the sum of logs by taking the products of the logands; +1 if the logand is 0
@@ -176,6 +182,13 @@ class VarDiffs(object):
             else:
                 rdiff_logavg = np.float('nan')
         return rdiff_max, rdiff_maxloc, rdiff_logavg
+
+    def _compute_max_loc(self, arr, maintained):
+        # Computes the location of the maximum value in the array
+        # that arr was formed from after it was masked
+        translated_loc = np.argmax(arr) + 1
+        actual_locs = np.cumsum(maintained)
+        return np.searchsorted(actual_locs, translated_loc)
 
     def _compute_dims_differ(self, var1, var2):
         if (var1.shape == var2.shape):
