@@ -19,14 +19,14 @@ def find_tmpfs():
     mtab_path = os.path.join('/', 'etc', 'mtab')
     tmpfs = []
     if os.path.isfile(mtab_path):
-        mtab = open(mtab_path, 'r')
-        for l in mtab:
-            if 'tmpfs' in l:
-                start = l.find('/')
-                end = l.rfind(' tmpfs')
-                path = l[start:end]
-                if os.path.isabs(path) and os.path.isdir(path):
-                    tmpfs.append(path)
+        with open(mtab_path, 'r') as mtab:
+            for l in mtab:
+                if 'tmpfs' in l:
+                    start = l.find('/')
+                    end = l.rfind(' tmpfs')
+                    path = l[start:end]
+                    if os.path.isabs(path) and os.path.isdir(path):
+                        tmpfs.append(path)
     return tmpfs
 
 def get_tmpfname():
