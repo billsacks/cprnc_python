@@ -344,7 +344,33 @@ class TestFilediffs(CustomAssertions):
         differ = mydiffs.files_differ()
         self.assertTrue(differ)
 
+    def test_filesDiffer_withDifferentSlices(self):
+        # Files with variables with different slices should also differ
+        data1 = np.array([[1,2,3,4],[5,6,7,8]])
+        data2 = np.array([[1,2],[5,6]])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            variables = {'var1': NetcdfVariableFake(data1, ('dim1', 'dim2'))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var1': NetcdfVariableFake(data2, ('dim1', 'dim2'))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        differ = mydiffs.files_differ()
+        self.assertTrue(differ)
 
+    def test_filesDiffer_withDifferentVars(self):
+        # Files with different variables should differ
+        data = np.array([1,2,3,4])
+        file1 = NetcdfFileFake(
+            self.FILENAME1,
+            # Tuples with only one string must have a comma appended
+            variables = {'var1': NetcdfVariableFake(data, ('dim',))})
+        file2 = NetcdfFileFake(
+            self.FILENAME2,
+            variables = {'var4': NetcdfVariableFake(data, ('dim',))})
+        mydiffs = FileDiffs(file1, file2, separate_dim='dim2')
+        differ = mydiffs.files_differ()
+        self.assertTrue(differ)
 
     # ------------------------------------------------------------------------
     # Tests of __str__
