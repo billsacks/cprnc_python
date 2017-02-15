@@ -83,7 +83,7 @@ def main(options):
     ncfile2 = netcdf(options.file2)
     diffs = FileDiffs(ncfile1, ncfile2, show_same=options.show_same, separate_dim="time", nprocs=options.nprocs)
     print(diffs)
-    return 0
+    return int(diffs.files_differ())
 
 if __name__ == "__main__":
     options = commandline_options()
