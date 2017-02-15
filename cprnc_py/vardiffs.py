@@ -164,7 +164,7 @@ class VarDiffs(object):
             maxvals = np.maximum(np.abs(var1), np.abs(var2))[differences]
             rdiff = np.abs(diff_vals) / maxvals.astype(np.float)
             rdiff_max = np.max(rdiff)
-            rdiff_maxloc = self._compute_maxloc(rdiff, differences)
+            rdiff_maxloc = self._compute_max_loc(rdiff, differences)
             numDiffs = np.sum(differences)
             if numDiffs > 0:
                 # Compute the sum of logs by taking the products of the logands; +1 if the logand is 0
