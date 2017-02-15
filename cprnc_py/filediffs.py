@@ -70,7 +70,8 @@ class FileDiffs(object):
 
         for var in self._vardiffs_list:
             v = var.var_diffs
-            if v.vars_differ() or v.could_not_be_analyzed() or self._show_same:
+            if (v.vars_differ() or v.could_not_be_analyzed() or v.masks_differ()
+                or v.dims_differ() or self._show_same):
                 mystr = mystr + str(var) + "\n\n"
 
         mystr = mystr + "SUMMARY of cprnc:\n"
