@@ -32,7 +32,7 @@ class FileDiffs(object):
     # Constructor and other special methods
     # ------------------------------------------------------------------------
 
-    def __init__(self, file1, file2, show_same, separate_dim="time", nprocs=None):
+    def __init__(self, file1, file2, show_same=True, separate_dim="time", nprocs=None):
         """Create a FileDiffs object.
 
         Arguments:
@@ -125,7 +125,7 @@ class FileDiffs(object):
         """Returns a count of the number of variables with elements that
         differ."""
 
-        return sum([var.var_diffs.vars_differ() for var in self._vardiffs_list])
+        return sum([var.var_diffs.vars_differ() for var in self._vardiffs_list if var.var_diffs.could_not_be_analyzed() == False])
 
     def num_masks_differ(self):
         """Returns a count of the number of variables with masks that differ."""
