@@ -125,7 +125,8 @@ class FileDiffs(object):
         """Returns a count of the number of variables with elements that
         differ."""
 
-        return sum([var.var_diffs.vars_differ() for var in self._vardiffs_list if var.var_diffs.could_not_be_analyzed() == False])
+        return sum([var.var_diffs.vars_differ() for var in self._vardiffs_list
+                    if var.var_diffs.could_not_be_analyzed() == False])
 
     def num_masks_differ(self):
         """Returns a count of the number of variables with masks that differ."""
